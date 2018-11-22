@@ -1,18 +1,5 @@
 version: '3'
 services:
-  nginx:
-    build:
-      context: dockerization/nginx
-      dockerfile: Dockerfile
-    restart: always
-    depends_on:
-      - resizer
-    volumes:
-    - storage:/storage
-
-    ports:
-    - "127.0.0.1:8080:80"
-
   resizer:
     build:
       context: ./
@@ -21,10 +8,10 @@ services:
     volumes:
     - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
 
+    ports:
+    - "127.0.0.1:8080:8080"
+
     environment:
     - RESIZER_SERVICE_HTTP_ADDRESS=:8080
     - RESIZER_SERVICE_CRAWLER_TIMEOUT=5s
     - RESIZER_SERVICE_RESIZER_FILTER=box
-
-volumes:
-  storage:

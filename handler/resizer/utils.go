@@ -2,6 +2,12 @@ package resizer
 
 import (
 	"errors"
+	"fmt"
+	"github.com/bmartynov/resizer_service/cache"
+	"go.uber.org/zap"
+	"hash/fnv"
+	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -21,6 +27,13 @@ type resizeRequest struct {
 	Url    string
 	Width  int
 	Height int
+}
+
+func (r *resizeRequest) cacheKey() string {
+	h := fnv.New64()
+	h.Write([]byte(fmt.Sprintf("%s%d%d", r.Url, r.Width, r.Height)))
+
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func (r *resizeRequest) Validate() error {
@@ -72,4 +85,34 @@ func requestFrom(raw url.Values) (rRequest *resizeRequest, err error) {
 	}
 
 	return
+}
+
+type handlerFn func(w http.ResponseWriter, r *http.Request, rr *resizeRequest)
+
+func withCache(
+	cacheManager cache.Manager,
+	logger *zap.SugaredLogger,
+	fn handlerFn,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+
+		rr, err := requestFrom(query)
+		if err != nil {
+			logger.Errorw("requestFrom", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		cached, err := cacheManager.Get(rr.cacheKey())
+		if err != nil {
+
+			fn(w, r, rr)
+		} else {
+			_, err = io.Copy(w, cached)
+			if err != nil {
+
+			}
+		}
+	}
 }
